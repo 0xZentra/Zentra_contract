@@ -23,16 +23,16 @@ contract Airdrop {
     mapping(address => uint256) public totalDepositedByToken;
     uint256 public airdropEndtime;
     bool public depositEnabled;
-    address aaveProxy; // 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5
+    address aaveProxy; // 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5 for base
 
     struct Deposit {
-        address token;
         uint256 amount;
+        uint256 timestamp;
     }
-    mapping(address => Deposit) public deposits;
+    mapping(address => mapping(address => Deposit)) public deposits;
 
     event AirdropEndChanged(uint256 timestamp);
-    event AirdropDepositChanged(address indexed user, uint256 amount, uint256 timestamp);
+    event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -65,29 +65,32 @@ contract Airdrop {
         IERC20 token = IERC20(_token);
         token.transferFrom(msg.sender, address(this), _amount);
 
+        Deposit memory userDeposit = deposits[_token][msg.sender];
+        userDeposit.amount += _amount;
+        userDeposit.timestamp = block.timestamp;
         totalDepositedByToken[_token] += _amount;
-        deposits[msg.sender] = Deposit({
-            token: _token,
-            amount: _amount
-        });
+        deposits[_token][msg.sender] = userDeposit;
+        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
 
-        IERC20(_token).approve(aaveProxy, _amount);
+        token.approve(aaveProxy, _amount);
         IAave(aaveProxy).supply(_token, _amount, address(this), 0);
     }
 
-    function withdraw(uint256 _amount) public {
-        Deposit storage userDeposit = deposits[msg.sender];
+    function withdraw(address _token, uint256 _amount) public {
+        require(supportedTokens[_token], "Token not supported");
+
+        Deposit storage userDeposit = deposits[_token][msg.sender];
         userDeposit.amount -= _amount;
-        address tokenAddress = userDeposit.token;
+        require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
 
-        deposits[msg.sender] = userDeposit;
-        totalDepositedByToken[tokenAddress] -= _amount;
-        IAave(aaveProxy).withdraw(tokenAddress, _amount, address(this));
+        deposits[_token][msg.sender] = userDeposit;
+        totalDepositedByToken[_token] -= _amount;
+        IAave(aaveProxy).withdraw(_token, _amount, address(this));
 
-        IERC20 token = IERC20(tokenAddress);
+        IERC20 token = IERC20(_token);
         token.transfer(msg.sender, _amount);
 
-        emit AirdropDepositChanged(msg.sender, userDeposit.amount, block.timestamp);
+        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
     }
 
 
