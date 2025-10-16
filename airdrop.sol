@@ -23,7 +23,11 @@ contract Airdrop {
     mapping(address => uint256) public totalDepositedByToken;
     uint256 public airdropEndtime;
     bool public depositEnabled;
-    address aaveProxy; // 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5 for base
+    address public aaveProxy;
+    // 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5 for base
+    // 0x794a61358D6845594F94dc1DB02A252b5b4814aD for op
+    // 0x794a61358D6845594F94dc1DB02A252b5b4814aD for arb
+    // 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 for eth
 
     struct Deposit {
         uint256 amount;
