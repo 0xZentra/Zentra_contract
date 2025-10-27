@@ -34,9 +34,11 @@ contract Airdrop {
         uint256 timestamp;
     }
     mapping(address => mapping(address => Deposit)) public deposits;
+mapping(address => uint256) public credits;
 
     event AirdropEndChanged(uint256 timestamp);
     event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
+event TokenPurchased(address indexed user, uint256 amount, uint256 timestamp);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -69,7 +71,7 @@ contract Airdrop {
         IERC20 token = IERC20(_token);
         token.transferFrom(msg.sender, address(this), _amount);
 
-        Deposit memory userDeposit = deposits[_token][msg.sender];
+        Deposit storage userDeposit = deposits[_token][msg.sender];
         userDeposit.amount += _amount;
         userDeposit.timestamp = block.timestamp;
         totalDepositedByToken[_token] += _amount;
@@ -82,19 +84,34 @@ contract Airdrop {
 
     function withdraw(address _token, uint256 _amount) public {
         require(supportedTokens[_token], "Token not supported");
-
         Deposit storage userDeposit = deposits[_token][msg.sender];
         userDeposit.amount -= _amount;
-        require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
+                deposits[_token][msg.sender] = userDeposit;
 
-        deposits[_token][msg.sender] = userDeposit;
+        uint256 duration = block.timestamp - userDeposit.timestamp;
+        uint256 credit = credits[msg.sender];
+        credit += _amount * duration;
+        credits[msg.sender] = credit;
+
         totalDepositedByToken[_token] -= _amount;
         IAave(aaveProxy).withdraw(_token, _amount, address(this));
-
         IERC20 token = IERC20(_token);
         token.transfer(msg.sender, _amount);
-
         emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
+    }
+
+function purchase(address _token, uint256 _zentra_amount) public {
+        require(supportedTokens[_token], "Token not supported");
+        require(airdropEndtime > 0, "Airdrop is not finished yet");
+        require(block.timestamp > airdropEndtime, "Airdrop is not finished yet");
+
+        uint256 credit = credits[msg.sender];
+        credit -= _zentra_amount * 365 days * 100;
+        credits[msg.sender] = credit;
+        IERC20 token = IERC20(_token);
+        token.transferFrom(msg.sender, address(this), _zentra_amount*100*10**6/(10**18));
+
+        emit TokenPurchased(msg.sender, _zentra_amount, block.timestamp);
     }
 
 
