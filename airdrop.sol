@@ -34,11 +34,11 @@ contract Airdrop {
         uint256 timestamp;
     }
     mapping(address => mapping(address => Deposit)) public deposits;
-mapping(address => uint256) public credits;
+    mapping(address => uint256) public credits;
 
     event AirdropEndChanged(uint256 timestamp);
     event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
-event TokenPurchased(address indexed user, uint256 amount, uint256 timestamp);
+    event TokenPurchased(address indexed user, uint256 amount, uint256 timestamp);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -100,7 +100,7 @@ event TokenPurchased(address indexed user, uint256 amount, uint256 timestamp);
         emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
     }
 
-function purchase(address _token, uint256 _zentra_amount) public {
+    function purchase(address _token, uint256 _zentra_amount) public {
         require(supportedTokens[_token], "Token not supported");
         require(airdropEndtime > 0, "Airdrop is not finished yet");
         require(block.timestamp > airdropEndtime, "Airdrop is not finished yet");
