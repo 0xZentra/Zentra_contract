@@ -22,7 +22,8 @@ contract Airdrop {
     mapping(address => bool) public supportedTokens;
     mapping(address => uint256) public totalDepositedByToken;
     uint256 public airdropEndtime;
-    bool public depositEnabled;
+    bool public depositEnabled = true;
+    bool public evacuateEnabled = false;
     address public aaveProxy;
     // 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5 for base
     // 0x794a61358D6845594F94dc1DB02A252b5b4814aD for op
@@ -38,7 +39,7 @@ contract Airdrop {
 
     event AirdropEndChanged(uint256 timestamp);
     event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
-    event TokenPurchased(address indexed user, uint256 amount, uint256 timestamp);
+    event TokenPurchased(address indexed user, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -53,7 +54,6 @@ contract Airdrop {
     constructor(address _aaveProxy) {
         owner = msg.sender;
         operator = msg.sender;
-        depositEnabled = true;
         aaveProxy = _aaveProxy;
     }
 
@@ -65,6 +65,7 @@ contract Airdrop {
     }
 
     function deposit(address _token, uint256 _amount) public {
+        require(!evacuateEnabled, "Evacuate is enabled");
         require(depositEnabled, "Deposits are disabled");
         require(supportedTokens[_token], "Token not supported");
 
@@ -95,10 +96,19 @@ contract Airdrop {
         credits[msg.sender] = credit;
 
         totalDepositedByToken[_token] -= _amount;
-        IAave(aaveProxy).withdraw(_token, _amount, address(this));
+        if(!evacuateEnabled){
+            IAave(aaveProxy).withdraw(_token, _amount, address(this));
+        }
         IERC20 token = IERC20(_token);
         token.transfer(msg.sender, _amount);
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
+
+        uint256 endtime;
+        if(block.timestamp > airdropEndtime){
+            endtime = airdropEndtime;
+        }else{
+            endtime = block.timestamp;
+        }
+        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, endtime);
     }
 
     function purchase(address _token, uint256 _zentra_amount) public {
@@ -112,7 +122,7 @@ contract Airdrop {
         IERC20 token = IERC20(_token);
         token.transferFrom(msg.sender, address(this), _zentra_amount*100*10**6/(10**18));
 
-        emit TokenPurchased(msg.sender, _zentra_amount, block.timestamp);
+        emit TokenPurchased(msg.sender, _zentra_amount);
     }
 
 
@@ -155,6 +165,22 @@ contract Airdrop {
 
             if (yieldAmount > 0) {
                 aToken.transfer(owner, yieldAmount);
+            }
+        }
+    }
+
+    function evacuate() public onlyOperator {
+        evacuateEnabled = true;
+
+        for (uint i = 0; i < supportedTokenList.length; i++) {
+            address tokenAddress = supportedTokenList[i];
+            IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
+            // uint256 yieldAmount = checkYieldToken(tokenAddress);
+            uint256 aTokenBalance = aToken.balanceOf(address(this));
+
+            if (aTokenBalance > 0) {
+                // aToken.transfer(owner, yieldAmount);
+                IAave(aaveProxy).withdraw(tokenAddress, aTokenBalance, address(this));
             }
         }
     }
