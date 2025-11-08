@@ -85,8 +85,9 @@ contract Airdrop {
     function withdraw(address _token, uint256 _amount) public {
         require(supportedTokens[_token], "Token not supported");
         Deposit storage userDeposit = deposits[_token][msg.sender];
+        require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
         userDeposit.amount -= _amount;
-                deposits[_token][msg.sender] = userDeposit;
+        deposits[_token][msg.sender] = userDeposit;
 
         uint256 duration = block.timestamp - userDeposit.timestamp;
         uint256 credit = credits[msg.sender];
