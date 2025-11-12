@@ -38,7 +38,7 @@ contract Bridge {
     event AirdropEndChanged(uint256 timestamp);
     event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
     event BridgeEvent(address addr, uint256 value);
-    event ReleaseEvent(address addr, uint256 value, bytes32 txhash);
+    event ReleaseEvent(address addr, uint256 value, bytes32 txhash, uint256 fee);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -83,12 +83,12 @@ contract Bridge {
         emit BridgeEvent(msg.sender, _amount);
     }
 
-    function release(address _token, uint256 _amount, address _to, bytes32 _bridge_hash) public onlyOperator {
+    function release(address _token, uint256 _amount, address _to, bytes32 _bridge_hash, uint256 _fee) public onlyOperator {
         require(supportedTokens[_token], "Token not supported");
 
-        Deposit storage userDeposit = deposits[_token][_to];  // <- bug here
-        userDeposit.amount -= _amount;
-        require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
+        Deposit storage userDeposit = deposits[_token][_to];
+        userDeposit.amount -= (_amount + _fee);
+        // require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
 
         deposits[_token][_to] = userDeposit;
         totalDepositedByToken[_token] -= _amount;
@@ -98,7 +98,7 @@ contract Bridge {
         token.transfer(_to, _amount);
 
         emit AirdropDepositChanged(_to, _token, userDeposit.amount, block.timestamp);
-        emit ReleaseEvent(_to, _amount, _bridge_hash);
+        emit ReleaseEvent(_to, _amount, _bridge_hash, _fee);
     }
 
 
