@@ -66,7 +66,7 @@ contract Airdrop {
 
     function deposit(address _token, uint256 _amount) public {
         require(!evacuateEnabled, "Evacuate is enabled");
-        require(depositEnabled, "Deposits are disabled");
+        require(depositEnabled, "Deposit is disabled");
         require(supportedTokens[_token], "Token not supported");
 
         IERC20 token = IERC20(_token);
