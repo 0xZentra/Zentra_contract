@@ -37,7 +37,7 @@ contract Bridge {
     mapping(address => mapping(address => Deposit)) public deposits;
 
     event AirdropEndChanged(uint256 timestamp);
-    event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
+    event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp, address referral);
     event BridgeEvent(address addr, uint256 value);
     event ReleaseEvent(address addr, uint256 value, bytes32 txhash, uint256 fee);
 
@@ -80,7 +80,7 @@ contract Bridge {
 
         token.approve(aaveProxy, _amount);
         IAave(aaveProxy).supply(_token, _amount, address(this), 0);
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
+        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp, address(0));
         emit BridgeEvent(msg.sender, _amount);
     }
 
@@ -100,7 +100,7 @@ contract Bridge {
         IERC20 token = IERC20(_token);
         token.transfer(_to, _amount);
 
-        emit AirdropDepositChanged(_to, _token, userDeposit.amount, block.timestamp);
+        emit AirdropDepositChanged(_to, _token, userDeposit.amount, block.timestamp, address(0));
         emit ReleaseEvent(_to, _amount, _bridge_hash, _fee);
     }
 

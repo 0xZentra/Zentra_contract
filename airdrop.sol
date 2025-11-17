@@ -38,7 +38,7 @@ contract Airdrop {
     mapping(address => uint256) public credits;
 
     event AirdropEndChanged(uint256 timestamp);
-    event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp);
+    event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp, address referral);
     event TokenPurchased(address indexed user, uint256 amount);
 
     modifier onlyOwner() {
@@ -64,7 +64,7 @@ contract Airdrop {
         supportedTokenList.push(_tokenAddress);
     }
 
-    function deposit(address _token, uint256 _amount) public {
+    function deposit(address _token, uint256 _amount, address referral) public {
         require(!evacuateEnabled, "Evacuate is enabled");
         require(depositEnabled, "Deposit is disabled");
         require(supportedTokens[_token], "Token not supported");
@@ -77,7 +77,7 @@ contract Airdrop {
         userDeposit.timestamp = block.timestamp;
         totalDepositedByToken[_token] += _amount;
         deposits[_token][msg.sender] = userDeposit;
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp);
+        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp, referral);
 
         token.approve(aaveProxy, _amount);
         IAave(aaveProxy).supply(_token, _amount, address(this), 0);
@@ -108,7 +108,7 @@ contract Airdrop {
         }else{
             endtime = block.timestamp;
         }
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, endtime);
+        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, endtime, address(0));
     }
 
     function purchase(address _token, uint256 _zentra_amount) public {
