@@ -146,42 +146,49 @@ contract Airdrop {
     }
 
     function checkYieldToken(address _tokenAddress) public view returns (uint256) {
-        IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
-        uint256 aTokenBalance = aToken.balanceOf(address(this));
         uint256 depositedTotal = totalDepositedByToken[_tokenAddress];
-
-        if (aTokenBalance > depositedTotal) {
-            return aTokenBalance - depositedTotal;
-        } else {
-            return 0;
+        if(evacuateEnabled){
+            uint256 tokenBalance = IERC20(_tokenAddress).balanceOf(address(this));
+            if (tokenBalance > depositedTotal) {
+                return tokenBalance - depositedTotal;
+            }
+        }else{
+            IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
+            uint256 aTokenBalance = aToken.balanceOf(address(this));
+            if (aTokenBalance > depositedTotal) {
+                return aTokenBalance - depositedTotal;
+            }
         }
+
+        return 0;
     }
 
     function withdrawYieldTokens() public onlyOperator {
         for (uint i = 0; i < supportedTokenList.length; i++) {
-            address tokenAddress = supportedTokenList[i];
-            IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
             uint256 yieldAmount = checkYieldToken(tokenAddress);
+            if(evacuateEnabled){
+                if (yieldAmount > 0) {
+                    IERC20(tokenAddress).transfer(owner, yieldAmount);
+                }
+            }else{
+                address tokenAddress = supportedTokenList[i];
+                IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
 
-            if (yieldAmount > 0) {
-                aToken.transfer(owner, yieldAmount);
+                if (yieldAmount > 0) {
+                    aToken.transfer(owner, yieldAmount);
+                }
             }
         }
     }
 
-    function evacuate() public onlyOperator {
+    function evacuate(address _tokenAddress) public onlyOperator {
         evacuateEnabled = true;
 
-        for (uint i = 0; i < supportedTokenList.length; i++) {
-            address tokenAddress = supportedTokenList[i];
-            IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
-            // uint256 yieldAmount = checkYieldToken(tokenAddress);
-            uint256 aTokenBalance = aToken.balanceOf(address(this));
+        IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
+        uint256 aTokenBalance = aToken.balanceOf(address(this));
 
-            if (aTokenBalance > 0) {
-                // aToken.transfer(owner, yieldAmount);
-                IAave(aaveProxy).withdraw(tokenAddress, aTokenBalance, address(this));
-            }
+        if (aTokenBalance > 0) {
+            IAave(aaveProxy).withdraw(_tokenAddress, aTokenBalance, address(this));
         }
     }
 }
