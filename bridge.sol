@@ -144,13 +144,13 @@ contract Bridge {
 
     function withdrawYieldTokens() public onlyOperator {
         for (uint i = 0; i < supportedTokenList.length; i++) {
+            address tokenAddress = supportedTokenList[i];
             uint256 yieldAmount = checkYieldToken(tokenAddress);
             if(evacuateEnabled){
                 if (yieldAmount > 0) {
                     IERC20(tokenAddress).transfer(owner, yieldAmount);
                 }
             }else{
-                address tokenAddress = supportedTokenList[i];
                 IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
 
                 if (yieldAmount > 0) {
