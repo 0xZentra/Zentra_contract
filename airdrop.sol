@@ -83,32 +83,36 @@ contract Airdrop {
         IAave(aaveProxy).supply(_token, _amount, address(this), 0);
     }
 
-    function withdraw(address _token, uint256 _amount) public {
-        require(supportedTokens[_token], "Token not supported");
-        Deposit storage userDeposit = deposits[_token][msg.sender];
-        require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
-        userDeposit.amount -= _amount;
-        deposits[_token][msg.sender] = userDeposit;
+    function withdraw() public {
+        for (uint256 i = 0; i < supportedTokenList.length; i++) {
+            address _token = supportedTokenList[i];
+            Deposit storage userDeposit = deposits[_token][msg.sender];
+            uint256 duration = block.timestamp - userDeposit.timestamp;
+            if (duration > 8 hours) {
+                uint256 _amount = userDeposit.amount;
+                userDeposit.amount = 0;
+                deposits[_token][msg.sender] = userDeposit;
 
-        uint256 duration = block.timestamp - userDeposit.timestamp;
-        uint256 credit = credits[msg.sender];
-        credit += _amount * duration;
-        credits[msg.sender] = credit;
+                uint256 credit = credits[msg.sender];
+                credit += _amount * duration;
+                credits[msg.sender] = credit;
 
-        totalDepositedByToken[_token] -= _amount;
-        if(!evacuateEnabled){
-            IAave(aaveProxy).withdraw(_token, _amount, address(this));
+                totalDepositedByToken[_token] -= _amount;
+                if(!evacuateEnabled) {
+                    IAave(aaveProxy).withdraw(_token, _amount, address(this));
+                }
+                IERC20 token = IERC20(_token);
+                token.transfer(msg.sender, _amount);
+
+                uint256 endtime;
+                if(block.timestamp > airdropEndtime){
+                    endtime = airdropEndtime;
+                }else{
+                    endtime = block.timestamp;
+                }
+                emit AirdropDepositChanged(msg.sender, _token, 0, endtime, address(0));
+            }
         }
-        IERC20 token = IERC20(_token);
-        token.transfer(msg.sender, _amount);
-
-        uint256 endtime;
-        if(block.timestamp > airdropEndtime){
-            endtime = airdropEndtime;
-        }else{
-            endtime = block.timestamp;
-        }
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, endtime, address(0));
     }
 
     function purchase(address _token, uint256 _zentra_amount) public {
