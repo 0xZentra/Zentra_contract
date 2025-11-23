@@ -51,67 +51,77 @@ contract Airdrop {
         _;
     }
 
-    constructor(address _aaveProxy) {
+    constructor(address _aave_proxy) {
         owner = msg.sender;
         operator = msg.sender;
-        aaveProxy = _aaveProxy;
+        aaveProxy = _aave_proxy;
     }
 
-    function addToken(address _tokenAddress) public onlyOwner {
-        require(_tokenAddress != address(0), "Invalid token address");
-        require(!supportedTokens[_tokenAddress], "Token already supported");
-        supportedTokens[_tokenAddress] = true;
-        supportedTokenList.push(_tokenAddress);
+    function addToken(address _token_address) public onlyOwner {
+        require(_token_address != address(0), "Invalid token address");
+        require(!supportedTokens[_token_address], "Token already supported");
+        supportedTokens[_token_address] = true;
+        supportedTokenList.push(_token_address);
     }
 
-    function deposit(address _token, uint256 _amount, address referral) public {
+    function deposit(address _stabletoken, uint256 _stabletoken_amount, address referral) public {
         require(!evacuateEnabled, "Evacuate is enabled");
         require(depositEnabled, "Deposit is disabled");
-        require(supportedTokens[_token], "Token not supported");
+        require(supportedTokens[_stabletoken], "Token not supported");
 
-        IERC20 token = IERC20(_token);
-        token.transferFrom(msg.sender, address(this), _amount);
+        IERC20 token = IERC20(_stabletoken);
+        token.transferFrom(msg.sender, address(this), _stabletoken_amount);
 
-        Deposit storage userDeposit = deposits[_token][msg.sender];
-        userDeposit.amount += _amount;
-        userDeposit.timestamp = block.timestamp;
-        totalDepositedByToken[_token] += _amount;
-        deposits[_token][msg.sender] = userDeposit;
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp, referral);
+        Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
+        uint256 credit = credits[msg.sender];
+        uint256 duration = block.timestamp - user_deposit.timestamp;
+        credit += _stabletoken_amount * duration;
+        credits[msg.sender] = credit;
 
-        token.approve(aaveProxy, _amount);
-        IAave(aaveProxy).supply(_token, _amount, address(this), 0);
+        user_deposit.amount += _stabletoken_amount;
+        user_deposit.timestamp = block.timestamp;
+        totalDepositedByToken[_stabletoken] += _stabletoken_amount;
+        deposits[_stabletoken][msg.sender] = user_deposit;
+        emit AirdropDepositChanged(msg.sender, _stabletoken, user_deposit.amount, block.timestamp, referral);
+
+        token.approve(aaveProxy, _stabletoken_amount);
+        IAave(aaveProxy).supply(_stabletoken, _stabletoken_amount, address(this), 0);
     }
 
     function withdraw() public {
         for (uint256 i = 0; i < supportedTokenList.length; i++) {
             address _stabletoken = supportedTokenList[i];
-            Deposit storage userDeposit = deposits[_stabletoken][msg.sender];
-            uint256 duration = block.timestamp - userDeposit.timestamp;
-            if (duration > 8 hours) {
-                uint256 _stabletoken_amount = userDeposit.amount;
-                userDeposit.amount = 0;
-                deposits[_stabletoken][msg.sender] = userDeposit;
+            Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
+            uint256 _stabletoken_amount = user_deposit.amount;
+            withdraw_token(_stabletoken, _stabletoken_amount);
+        }
+    }
 
-                uint256 credit = credits[msg.sender];
-                credit += _stabletoken_amount * duration;
-                credits[msg.sender] = credit;
+    function withdraw_token(address _stabletoken, uint256 _stabletoken_amount) public {
+        Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
+        uint256 duration = block.timestamp - user_deposit.timestamp;
+        if (duration > 8 hours) {
+            user_deposit.amount -= _stabletoken_amount;
+            deposits[_stabletoken][msg.sender] = user_deposit;
 
-                totalDepositedByToken[_stabletoken] -= _stabletoken_amount;
-                if(!evacuateEnabled) {
-                    IAave(aaveProxy).withdraw(_stabletoken, _stabletoken_amount, address(this));
-                }
-                IERC20 token = IERC20(_stabletoken);
-                token.transfer(msg.sender, _stabletoken_amount);
+            uint256 credit = credits[msg.sender];
+            credit += _stabletoken_amount * duration;
+            credits[msg.sender] = credit;
 
-                uint256 endtime;
-                if(block.timestamp > airdropEndtime) {
-                    endtime = airdropEndtime;
-                } else {
-                    endtime = block.timestamp;
-                }
-                emit AirdropDepositChanged(msg.sender, _stabletoken, 0, endtime, address(0));
+            totalDepositedByToken[_stabletoken] -= _stabletoken_amount;
+            if(!evacuateEnabled) {
+                IAave(aaveProxy).withdraw(_stabletoken, _stabletoken_amount, address(this));
             }
+            IERC20 token = IERC20(_stabletoken);
+            token.transfer(msg.sender, _stabletoken_amount);
+
+            uint256 endtime;
+            if(block.timestamp > airdropEndtime) {
+                endtime = airdropEndtime;
+            } else {
+                endtime = block.timestamp;
+            }
+            emit AirdropDepositChanged(msg.sender, _stabletoken, 0, endtime, address(0));
         }
     }
 
@@ -131,14 +141,14 @@ contract Airdrop {
     }
 
 
-    function changeOwner(address _newOwner) public onlyOwner {
-        require(_newOwner != address(0), "Invalid owner address");
-        owner = _newOwner;
+    function changeOwner(address _new_owner) public onlyOwner {
+        require(_new_owner != address(0), "Invalid owner address");
+        owner = _new_owner;
     }
 
-    function changeOperator(address _newOperator) public onlyOwner {
-        require(_newOperator != address(0), "Invalid operator address");
-        operator = _newOperator;
+    function changeOperator(address _new_operator) public onlyOwner {
+        require(_new_operator != address(0), "Invalid operator address");
+        operator = _new_operator;
     }
 
     function setDepositEnabled(bool _enabled) public onlyOperator {
@@ -150,18 +160,18 @@ contract Airdrop {
         emit AirdropEndChanged(_timestamp);
     }
 
-    function checkYieldToken(address _tokenAddress) public view returns (uint256) {
-        uint256 depositedTotal = totalDepositedByToken[_tokenAddress];
+    function checkYieldToken(address _token_address) public view returns (uint256) {
+        uint256 depositedTotal = totalDepositedByToken[_token_address];
         if(evacuateEnabled){
-            uint256 tokenBalance = IERC20(_tokenAddress).balanceOf(address(this));
+            uint256 tokenBalance = IERC20(_token_address).balanceOf(address(this));
             if (tokenBalance > depositedTotal) {
                 return tokenBalance - depositedTotal;
             }
         }else{
-            IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
-            uint256 aTokenBalance = aToken.balanceOf(address(this));
-            if (aTokenBalance > depositedTotal) {
-                return aTokenBalance - depositedTotal;
+            IERC20 atoken = IERC20(IAave(aaveProxy).getReserveAToken(_token_address));
+            uint256 atoken_balance = atoken.balanceOf(address(this));
+            if (atoken_balance > depositedTotal) {
+                return atoken_balance - depositedTotal;
             }
         }
 
@@ -170,30 +180,30 @@ contract Airdrop {
 
     function withdrawYieldTokens() public onlyOperator {
         for (uint i = 0; i < supportedTokenList.length; i++) {
-            address tokenAddress = supportedTokenList[i];
-            uint256 yieldAmount = checkYieldToken(tokenAddress);
+            address token_address = supportedTokenList[i];
+            uint256 yield_amount = checkYieldToken(token_address);
             if(evacuateEnabled){
-                if (yieldAmount > 0) {
-                    IERC20(tokenAddress).transfer(owner, yieldAmount);
+                if (yield_amount > 0) {
+                    IERC20(token_address).transfer(owner, yield_amount);
                 }
             }else{
-                IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
+                IERC20 atoken = IERC20(IAave(aaveProxy).getReserveAToken(token_address));
 
-                if (yieldAmount > 0) {
-                    aToken.transfer(owner, yieldAmount);
+                if (yield_amount > 0) {
+                    atoken.transfer(owner, yield_amount);
                 }
             }
         }
     }
 
-    function evacuate(address _tokenAddress) public onlyOperator {
+    function evacuate(address _token_address) public onlyOperator {
         evacuateEnabled = true;
 
-        IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
-        uint256 aTokenBalance = aToken.balanceOf(address(this));
+        IERC20 atoken = IERC20(IAave(aaveProxy).getReserveAToken(_token_address));
+        uint256 atoken_balance = atoken.balanceOf(address(this));
 
-        if (aTokenBalance > 0) {
-            IAave(aaveProxy).withdraw(_tokenAddress, aTokenBalance, address(this));
+        if (atoken_balance > 0) {
+            IAave(aaveProxy).withdraw(_token_address, atoken_balance, address(this));
         }
     }
 }

@@ -51,17 +51,17 @@ contract Bridge {
         _;
     }
 
-    constructor(address _aaveProxy) {
+    constructor(address _aave_proxy) {
         owner = msg.sender;
         operator = msg.sender;
-        aaveProxy = _aaveProxy;
+        aaveProxy = _aave_proxy;
     }
 
-    function addToken(address _tokenAddress) public onlyOwner {
-        require(_tokenAddress != address(0), "Invalid token address");
-        require(!supportedTokens[_tokenAddress], "Token already supported");
-        supportedTokens[_tokenAddress] = true;
-        supportedTokenList.push(_tokenAddress);
+    function addToken(address _token_address) public onlyOwner {
+        require(_token_address != address(0), "Invalid token address");
+        require(!supportedTokens[_token_address], "Token already supported");
+        supportedTokens[_token_address] = true;
+        supportedTokenList.push(_token_address);
     }
 
     function bridge(address _token, uint256 _amount) public {
@@ -72,26 +72,26 @@ contract Bridge {
         IERC20 token = IERC20(_token);
         token.transferFrom(msg.sender, address(this), _amount);
 
-        Deposit memory userDeposit = deposits[_token][msg.sender];
-        userDeposit.amount += _amount;
-        userDeposit.timestamp = block.timestamp;
+        Deposit memory user_deposit = deposits[_token][msg.sender];
+        user_deposit.amount += _amount;
+        user_deposit.timestamp = block.timestamp;
         totalDepositedByToken[_token] += _amount;
-        deposits[_token][msg.sender] = userDeposit;
+        deposits[_token][msg.sender] = user_deposit;
 
         token.approve(aaveProxy, _amount);
         IAave(aaveProxy).supply(_token, _amount, address(this), 0);
-        emit AirdropDepositChanged(msg.sender, _token, userDeposit.amount, block.timestamp, address(0));
+        emit AirdropDepositChanged(msg.sender, _token, user_deposit.amount, block.timestamp, address(0));
         emit BridgeEvent(msg.sender, _amount);
     }
 
     function release(address _token, uint256 _amount, address _to, bytes32 _bridge_hash, uint256 _fee) public onlyOperator {
         require(supportedTokens[_token], "Token not supported");
 
-        Deposit storage userDeposit = deposits[_token][_to];
-        userDeposit.amount -= (_amount + _fee);
-        // require(userDeposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
+        Deposit storage user_deposit = deposits[_token][_to];
+        user_deposit.amount -= (_amount + _fee);
+        // require(user_deposit.timestamp + 8 hours < block.timestamp, "Needs 8 hours before withdraw");
 
-        deposits[_token][_to] = userDeposit;
+        deposits[_token][_to] = user_deposit;
         totalDepositedByToken[_token] -= _amount;
         if(!evacuateEnabled){
             IAave(aaveProxy).withdraw(_token, _amount, address(this));
@@ -100,19 +100,19 @@ contract Bridge {
         IERC20 token = IERC20(_token);
         token.transfer(_to, _amount);
 
-        emit AirdropDepositChanged(_to, _token, userDeposit.amount, block.timestamp, address(0));
+        emit AirdropDepositChanged(_to, _token, user_deposit.amount, block.timestamp, address(0));
         emit ReleaseEvent(_to, _amount, _bridge_hash, _fee);
     }
 
 
-    function changeOwner(address _newOwner) public onlyOwner {
-        require(_newOwner != address(0), "Invalid owner address");
-        owner = _newOwner;
+    function changeOwner(address _new_owner) public onlyOwner {
+        require(_new_owner != address(0), "Invalid owner address");
+        owner = _new_owner;
     }
 
-    function changeOperator(address _newOperator) public onlyOwner {
-        require(_newOperator != address(0), "Invalid operator address");
-        operator = _newOperator;
+    function changeOperator(address _new_operator) public onlyOwner {
+        require(_new_operator != address(0), "Invalid operator address");
+        operator = _new_operator;
     }
 
     function setBridgeEnabled(bool _enabled) public onlyOperator {
@@ -124,18 +124,18 @@ contract Bridge {
         emit AirdropEndChanged(_timestamp);
     }
 
-    function checkYieldToken(address _tokenAddress) public view returns (uint256) {
-        uint256 depositedTotal = totalDepositedByToken[_tokenAddress];
+    function checkYieldToken(address _token_address) public view returns (uint256) {
+        uint256 depositedTotal = totalDepositedByToken[_token_address];
         if(evacuateEnabled){
-            uint256 tokenBalance = IERC20(_tokenAddress).balanceOf(address(this));
+            uint256 tokenBalance = IERC20(_token_address).balanceOf(address(this));
             if (tokenBalance > depositedTotal) {
                 return tokenBalance - depositedTotal;
             }
         }else{
-            IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
-            uint256 aTokenBalance = aToken.balanceOf(address(this));
-            if (aTokenBalance > depositedTotal) {
-                return aTokenBalance - depositedTotal;
+            IERC20 atoken = IERC20(IAave(aaveProxy).getReserveAToken(_token_address));
+            uint256 atoken_balance = atoken.balanceOf(address(this));
+            if (atoken_balance > depositedTotal) {
+                return atoken_balance - depositedTotal;
             }
         }
 
@@ -144,30 +144,30 @@ contract Bridge {
 
     function withdrawYieldTokens() public onlyOperator {
         for (uint i = 0; i < supportedTokenList.length; i++) {
-            address tokenAddress = supportedTokenList[i];
-            uint256 yieldAmount = checkYieldToken(tokenAddress);
+            address token_address = supportedTokenList[i];
+            uint256 yield_amount = checkYieldToken(token_address);
             if(evacuateEnabled){
-                if (yieldAmount > 0) {
-                    IERC20(tokenAddress).transfer(owner, yieldAmount);
+                if (yield_amount > 0) {
+                    IERC20(token_address).transfer(owner, yield_amount);
                 }
             }else{
-                IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(tokenAddress));
+                IERC20 atoken = IERC20(IAave(aaveProxy).getReserveAToken(token_address));
 
-                if (yieldAmount > 0) {
-                    aToken.transfer(owner, yieldAmount);
+                if (yield_amount > 0) {
+                    atoken.transfer(owner, yield_amount);
                 }
             }
         }
     }
 
-    function evacuate(address _tokenAddress) public onlyOperator {
+    function evacuate(address _token_address) public onlyOperator {
         evacuateEnabled = true;
 
-        IERC20 aToken = IERC20(IAave(aaveProxy).getReserveAToken(_tokenAddress));
-        uint256 aTokenBalance = aToken.balanceOf(address(this));
+        IERC20 atoken = IERC20(IAave(aaveProxy).getReserveAToken(_token_address));
+        uint256 atoken_balance = atoken.balanceOf(address(this));
 
-        if (aTokenBalance > 0) {
-            IAave(aaveProxy).withdraw(_tokenAddress, aTokenBalance, address(this));
+        if (atoken_balance > 0) {
+            IAave(aaveProxy).withdraw(_token_address, atoken_balance, address(this));
         }
     }
 }
