@@ -85,48 +85,49 @@ contract Airdrop {
 
     function withdraw() public {
         for (uint256 i = 0; i < supportedTokenList.length; i++) {
-            address _token = supportedTokenList[i];
-            Deposit storage userDeposit = deposits[_token][msg.sender];
+            address _stabletoken = supportedTokenList[i];
+            Deposit storage userDeposit = deposits[_stabletoken][msg.sender];
             uint256 duration = block.timestamp - userDeposit.timestamp;
             if (duration > 8 hours) {
-                uint256 _amount = userDeposit.amount;
+                uint256 _stabletoken_amount = userDeposit.amount;
                 userDeposit.amount = 0;
-                deposits[_token][msg.sender] = userDeposit;
+                deposits[_stabletoken][msg.sender] = userDeposit;
 
                 uint256 credit = credits[msg.sender];
-                credit += _amount * duration;
+                credit += _stabletoken_amount * duration;
                 credits[msg.sender] = credit;
 
-                totalDepositedByToken[_token] -= _amount;
+                totalDepositedByToken[_stabletoken] -= _stabletoken_amount;
                 if(!evacuateEnabled) {
-                    IAave(aaveProxy).withdraw(_token, _amount, address(this));
+                    IAave(aaveProxy).withdraw(_stabletoken, _stabletoken_amount, address(this));
                 }
-                IERC20 token = IERC20(_token);
-                token.transfer(msg.sender, _amount);
+                IERC20 token = IERC20(_stabletoken);
+                token.transfer(msg.sender, _stabletoken_amount);
 
                 uint256 endtime;
-                if(block.timestamp > airdropEndtime){
+                if(block.timestamp > airdropEndtime) {
                     endtime = airdropEndtime;
-                }else{
+                } else {
                     endtime = block.timestamp;
                 }
-                emit AirdropDepositChanged(msg.sender, _token, 0, endtime, address(0));
+                emit AirdropDepositChanged(msg.sender, _stabletoken, 0, endtime, address(0));
             }
         }
     }
 
-    function purchase(address _token, uint256 _zentra_amount) public {
-        require(supportedTokens[_token], "Token not supported");
+    function purchase(address _stabletoken, uint256 _stabletoken_amount) public {
+        require(supportedTokens[_stabletoken], "Token not supported");
         require(airdropEndtime > 0, "Airdrop is not finished yet");
         require(block.timestamp > airdropEndtime, "Airdrop is not finished yet");
 
         uint256 credit = credits[msg.sender];
-        credit -= _zentra_amount * 365 days * 100;
+        uint256 zentra_amount = _stabletoken_amount * 10**18 / 10 ** 6 / 100;
+        credit -= _stabletoken_amount * 365 days;
         credits[msg.sender] = credit;
-        IERC20 token = IERC20(_token);
-        token.transferFrom(msg.sender, address(this), _zentra_amount*100*10**6/(10**18));
+        IERC20 token = IERC20(_stabletoken);
+        token.transferFrom(msg.sender, address(this), _stabletoken_amount);
 
-        emit TokenPurchased(msg.sender, _zentra_amount);
+        emit TokenPurchased(msg.sender, zentra_amount);
     }
 
 
