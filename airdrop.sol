@@ -98,6 +98,7 @@ contract Airdrop {
     }
 
     function withdraw_token(address _stabletoken, uint256 _stabletoken_amount) public {
+        require(supportedTokens[_stabletoken], "Token not supported");
         Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
         uint256 duration = block.timestamp - user_deposit.timestamp;
         if (duration > 8 hours) {
