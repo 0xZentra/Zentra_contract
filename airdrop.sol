@@ -74,9 +74,11 @@ contract Airdrop {
 
         Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
         uint256 credit = credits[msg.sender];
-        uint256 duration = block.timestamp - user_deposit.timestamp;
-        credit += _stabletoken_amount * duration;
-        credits[msg.sender] = credit;
+        if(user_deposit.timestamp > 0 && user_deposit.amount > 0) {
+            uint256 duration = block.timestamp - user_deposit.timestamp;
+            credit += user_deposit.amount * duration;
+            credits[msg.sender] = credit;
+        }
 
         user_deposit.amount += _stabletoken_amount;
         user_deposit.timestamp = block.timestamp;
