@@ -104,6 +104,10 @@ contract Airdrop {
         Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
         uint256 duration = block.timestamp - user_deposit.timestamp;
         if (duration > 8 hours) {
+            // Checks
+            require(user_deposit.amount >= _stabletoken_amount, "Insufficient balance");
+            
+            // Effects: Update state before external calls
             user_deposit.amount -= _stabletoken_amount;
             deposits[_stabletoken][msg.sender] = user_deposit;
 
@@ -112,11 +116,6 @@ contract Airdrop {
             credits[msg.sender] = credit;
 
             totalDepositedByToken[_stabletoken] -= _stabletoken_amount;
-            if(!evacuateEnabled) {
-                IAave(aaveProxy).withdraw(_stabletoken, _stabletoken_amount, address(this));
-            }
-            IERC20 token = IERC20(_stabletoken);
-            token.transfer(msg.sender, _stabletoken_amount);
 
             uint256 endtime;
             if(block.timestamp > airdropEndtime) {
@@ -125,6 +124,13 @@ contract Airdrop {
                 endtime = block.timestamp;
             }
             emit AirdropDepositChanged(msg.sender, _stabletoken, 0, endtime, address(0));
+
+            // Interactions: External calls after state updates
+            if(!evacuateEnabled) {
+                IAave(aaveProxy).withdraw(_stabletoken, _stabletoken_amount, address(this));
+            }
+            IERC20 token = IERC20(_stabletoken);
+            token.transfer(msg.sender, _stabletoken_amount);
         }
     }
 
