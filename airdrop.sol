@@ -35,7 +35,7 @@ contract Airdrop {
         uint256 timestamp;
     }
     mapping(address => mapping(address => Deposit)) public deposits;
-    mapping(address => uint256) public credits;
+    mapping(address => uint256) public options;
 
     event AirdropEndChanged(uint256 timestamp);
     event AirdropDepositChanged(address indexed user, address token, uint256 amount, uint256 timestamp, address referral);
@@ -73,12 +73,13 @@ contract Airdrop {
         token.transferFrom(msg.sender, address(this), _stabletoken_amount);
 
         Deposit storage user_deposit = deposits[_stabletoken][msg.sender];
-        uint256 credit = credits[msg.sender];
+        uint256 option = options[msg.sender];
         if(user_deposit.timestamp > 0 && user_deposit.amount > 0) {
             uint256 duration = block.timestamp - user_deposit.timestamp;
-            credit += user_deposit.amount * duration;
-            credits[msg.sender] = credit;
+            option += user_deposit.amount * duration;
+            options[msg.sender] = option;
         }
+
 
         user_deposit.amount += _stabletoken_amount;
         user_deposit.timestamp = block.timestamp;
@@ -111,9 +112,9 @@ contract Airdrop {
             user_deposit.amount -= _stabletoken_amount;
             deposits[_stabletoken][msg.sender] = user_deposit;
 
-            uint256 credit = credits[msg.sender];
-            credit += _stabletoken_amount * duration;
-            credits[msg.sender] = credit;
+            uint256 option = options[msg.sender];
+            option += _stabletoken_amount * duration;
+            options[msg.sender] = option;
 
             totalDepositedByToken[_stabletoken] -= _stabletoken_amount;
 
@@ -134,15 +135,15 @@ contract Airdrop {
         }
     }
 
-    function purchase(address _stabletoken, uint256 _stabletoken_amount) public {
+    function purchase_option(address _stabletoken, uint256 _stabletoken_amount) public {
         require(supportedTokens[_stabletoken], "Token not supported");
         require(airdropEndtime > 0, "Airdrop is not finished yet");
         require(block.timestamp > airdropEndtime, "Airdrop is not finished yet");
 
-        uint256 credit = credits[msg.sender];
+        uint256 option = options[msg.sender];
         uint256 zentra_amount = _stabletoken_amount * 10**18 / 10 ** 6 / 100;
-        credit -= _stabletoken_amount * 365 days;
-        credits[msg.sender] = credit;
+        option -= _stabletoken_amount * 365 days;
+        options[msg.sender] = option;
         IERC20 token = IERC20(_stabletoken);
         token.transferFrom(msg.sender, address(this), _stabletoken_amount);
 
